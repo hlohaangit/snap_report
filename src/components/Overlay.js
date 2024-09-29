@@ -3,10 +3,20 @@ import React, { Fragment } from "react";
 import { Dialog, Transition, Alert} from "@headlessui/react";
 
 const Overlay = ({ open, setOpen, isLoading, responseData }) => {
-  const emergencyAnalysis = responseData?.[0]?.llama_analysis?.recommendations || [];
-  // const dos = responseData?.[0]?.recommendations?.dos || [];
-  // const donts = responseData?.[0]?.recommendations?.donts || [];
-  console.log(emergencyAnalysis);
+   
+  const emergencyAnalysis = (() => {
+    if (responseData.llama_analysis) {
+      try {
+        const llamaAnalysis = JSON.parse(responseData.llama_analysis);
+        return llamaAnalysis.recommendations || []; // Access recommendations
+      } catch (error) {
+        console.error("Error parsing llama_analysis:", error);
+        return []; 
+      }
+    }
+    return [];
+  })();
+
 
   return (
     <Transition.Root show={open} as={Fragment}>

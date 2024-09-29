@@ -1,6 +1,5 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { PhotoIcon } from "@heroicons/react/24/solid";
-import EXIF from "exif-js";
 import Overlay from "./Overlay";
 
 function Form() {
@@ -9,15 +8,14 @@ function Form() {
     category: "",
     description: "",
   };
+
   const [formData, setFormData] = useState(initialState);
-  const [imageMetadata, setImageMetadata] = useState(null);
-  const [imagePreview, setImagePreview] = useState(null); // For storing the preview URL
+  const [imagePreview, setImagePreview] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isOverlayOpen, setIsOverlayOpen] = useState(false);
-  const [overlayLoading, setOverlayLoading] = useState(false);
   const [responseData, setResponseData] = useState({});
 
-  const fileInputRef = useRef(null); // Add this line
+  const fileInputRef = useRef(null);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -30,23 +28,19 @@ function Form() {
   const handleFileChange = (event) => {
     const file = event.target.files[0];
     if (file) {
-      // Generate a URL for the image preview
       setImagePreview(URL.createObjectURL(file));
-      // Set the file object to formData
       setFormData((prevFormData) => ({
         ...prevFormData,
-        imageInfo: file, // Store the file object
+        imageInfo: file,
       }));
     }
   };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    setIsOverlayOpen(true); // Open the overlay when form submission starts
-    setOverlayLoading(true);
+    setIsOverlayOpen(true);
     setIsLoading(true);
 
-    // Check if geolocation is available
     if (!navigator.geolocation) {
       console.error("Geolocation is not supported by this browser.");
       setIsLoading(false);
@@ -61,14 +55,12 @@ function Form() {
         reader.onerror = (error) => reject(error);
       });
 
-    // Attempt to convert image to Base64 (if exists)
     const imageBase64 = formData.imageInfo
       ? await convertToBase64(formData.imageInfo)
       : null;
 
     navigator.geolocation.getCurrentPosition(
       async (position) => {
-        // Construct the JSON payload
         const payload = {
           category: formData.category,
           description: formData.description,
@@ -79,9 +71,7 @@ function Form() {
           image_base64: imageBase64,
         };
 
-        console.log(payload);
-
-        // Send the JSON payload to your backend
+        console.log("Payload:", payload);
         try {
           const response = await fetch("https://snap-report-437019.uc.r.appspot.com/analyze", {
             method: "POST",
@@ -95,12 +85,10 @@ function Form() {
             throw new Error("Network response was not ok");
           }
 
-          const responseData = await response.json();
-          console.log("Successfully submitted:", responseData);
-          setResponseData(responseData);
-          setIsLoading(false)
-
-          // Update the state or UI as necessary
+          const data = await response.json();
+          console.log("Successfully submitted:", data);
+          setResponseData(data);
+          setIsOverlayOpen(true);
         } catch (error) {
           console.error("Failed to submit form:", error);
           setResponseData({ message: "Submission failed. Please try again later." });
@@ -116,15 +104,26 @@ function Form() {
   };
 
   const handleReset = () => {
-    console.log("calling reset")
     setFormData(initialState);
-    setImagePreview(null)
+    setImagePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ""; // Reset the file input
+    }
   };
+
+  // Clean up the image preview URL when the component unmounts or image changes
+  useEffect(() => {
+    return () => {
+      if (imagePreview) {
+        URL.revokeObjectURL(imagePreview);
+      }
+    };
+  }, [imagePreview]);
 
   return (
     <div className="rounded-3xl m-5 mx-auto max-w-4xl p-8 bg-zinc-300">
       <form onSubmit={handleSubmit}>
-        {/* Image */}
+        {/* Image Upload */}
         <div className="col-span-full">
           <label className="block text-sm font-medium leading-6 text-gray-900 text-left">
             Image
@@ -156,12 +155,13 @@ function Form() {
                     <label className="relative cursor-pointer rounded-md bg-zinc-50 font-semibold text-sky-600 focus-within:outline-none focus-within:ring-2 focus-within:ring-indigo-600 focus-within:ring-offset-2 hover:text-indigo-500">
                       <span>Upload an Image</span>
                       <input
+                        ref={fileInputRef}
                         id="imageInfo"
                         name="imageInfo"
                         type="file"
-                        accept="image/png, image/jpeg, image/gif" // Specify accepted file formats
+                        accept="image/png, image/jpeg, image/gif"
                         className="sr-only"
-                        capture // This attribute is used to tell the browser to use camera for capturing an image
+                        capture
                         required
                         onChange={handleFileChange}
                       />
@@ -170,7 +170,6 @@ function Form() {
                   </div>
                 </>
               )}
-
               <p className="text-xs leading-5 text-gray-600">
                 PNG, JPG, GIF up to 10MB
               </p>
@@ -178,7 +177,7 @@ function Form() {
           </div>
         </div>
 
-        {/* Dropdown */}
+        {/* Dropdown for Category */}
         <div className="mt-4 w-full">
           <label className="block text-sm font-medium leading-6 text-gray-900 text-left">
             Category
@@ -192,7 +191,7 @@ function Form() {
               onChange={handleChange}
               value={formData.category}
             >
-              <option></option>
+              <option value="" disabled>Select a category</option>
               <option>Injury</option>
               <option>Accident</option>
               <option>Medical Emergency</option>
@@ -203,7 +202,7 @@ function Form() {
           </div>
         </div>
 
-        {/* Description */}
+        {/* Description Textarea */}
         <div className="mt-4 col-span-full">
           <label className="block text-sm font-medium leading-6 text-gray-900 text-left">
             Description
@@ -220,7 +219,7 @@ function Form() {
           </div>
         </div>
 
-        {/* Submit and Reset */}
+        {/* Submit and Reset Buttons */}
         <div className="mt-6 flex flex-col sm:flex-row sm:gap-x-4 gap-y-4">
           <button
             type="button"
@@ -238,23 +237,13 @@ function Form() {
         </div>
       </form>
 
-      {/* Displaying the location */}
-      {/* {location && (
-        <p className="text-xs leading-5 text-gray-600">
-          Latitude: {location.latitude}, Longitude: {location.longitude}
-        </p>
-      )} */}
-      
+      {/* Overlay for loading and response data */}
       <Overlay 
         open={isOverlayOpen}
         setOpen={setIsOverlayOpen}
         isLoading={isLoading}
         responseData={responseData}
       />
-
-      {/* <p className="mt-10 text-xs font-medium leading-6 text-gray-500">
-        Made with ❤️ for SF
-      </p> */}
     </div>
   );
 }
